@@ -46,6 +46,7 @@
           const [duplicatePercent, setDuplicatePercent] = useState(25);
           
           // Lender B
+          const [lenderBColdLeadFee, setLenderBColdLeadFee] = useState(0);
           const [lenderBPerfFee, setLenderBPerfFee] = useState(100);
           const [lenderBConvRate, setLenderBConvRate] = useState(15);
           const [refundToA, setRefundToA] = useState(20);
@@ -73,7 +74,9 @@
             // Revenues
             const revABase = baseFee;
             const revAPerf = aPerformingLeads * lenderAPerfFee;
-            const revB = bPerformingLeads * lenderBPerfFee;
+            const revBCold = bReceivedLeads * lenderBColdLeadFee;
+            const revBPerf = bPerformingLeads * lenderBPerfFee;
+            const revB = revBCold + revBPerf;
             const totalRefundToA = bPerformingLeads * refundToA;
             const revC = cReceivedLeads * lenderCFee;
 
@@ -90,10 +93,10 @@
             
             return {
               totalLeads, aUsableLeads, aPerformingLeads, bReceivedLeads, bPerformingLeads, cReceivedLeads,
-              revABase, revAPerf, revB, totalRefundToA, revC, totalGrossRevenue, netProfit, revPerDollar, operatingCosts,
+              revABase, revAPerf, revBCold, revBPerf, revB, totalRefundToA, revC, totalGrossRevenue, netProfit, revPerDollar, operatingCosts,
               lenderAGrossCost, lenderANetCost, lenderAActualCPL, lenderAActualCPSU
             };
-          }, [adSpend, cpl, baseFee, lenderAPerfFee, lenderAConvRate, duplicatePercent, lenderBPerfFee, lenderBConvRate, refundToA, lenderCFee, techCost, manpowerCost, rentalCost]);
+          }, [adSpend, cpl, baseFee, lenderAPerfFee, lenderAConvRate, duplicatePercent, lenderBColdLeadFee, lenderBPerfFee, lenderBConvRate, refundToA, lenderCFee, techCost, manpowerCost, rentalCost]);
 
           // Formatters
           const formatCur = (num) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
@@ -106,6 +109,7 @@
               insights.push({ type: 'danger', text: `You are currently losing ${formatCur(Math.abs(data.netProfit))} per month. You must increase volume, raise fees, or improve conversions to cover your ${formatCur(data.operatingCosts)} overhead.` });
               
               const variableRevPerLead = ((100-duplicatePercent)/100 * (lenderAConvRate/100) * lenderAPerfFee) + 
+                                         ((duplicatePercent/100) * lenderBColdLeadFee) +
                                          ((duplicatePercent/100) * (lenderBConvRate/100) * (lenderBPerfFee - refundToA)) +
                                          ((duplicatePercent/100) * (1 - lenderBConvRate/100) * lenderCFee);
               const leadsNeededToBreakEven = (data.operatingCosts - baseFee) / variableRevPerLead;
@@ -244,6 +248,7 @@
                       </div>
 
                       <InputSlider label="Duplicate Leads (Goes to B)" value={duplicatePercent} setter={setDuplicatePercent} min={0} max={100} symbol="%" />
+                      <InputSlider label="Lender B Cold Lead Price" value={lenderBColdLeadFee} setter={setLenderBColdLeadFee} min={0} max={200} step={5} isCurrency />
                       <InputSlider label="Lender B Perf. Fee" value={lenderBPerfFee} setter={setLenderBPerfFee} min={10} max={200} step={10} isCurrency />
                       <InputSlider label="Lender B Conv. Rate" value={lenderBConvRate} setter={setLenderBConvRate} min={1} max={50} symbol="%" />
                       <InputSlider label="Lender C Cold Lead Price" value={lenderCFee} setter={setLenderCFee} min={0} max={30} step={1} isCurrency />
@@ -382,36 +387,6 @@
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                            <span className="text-slate-500 block">Usable Leads</span>
-                            <span className="font-bold text-sm">{formatNum(data.aUsableLeads)} ({100-duplicatePercent}%)</span>
-                          </div>
-                          <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                            <span className="text-slate-500 block">Performing</span>
-                            <span className="font-bold text-sm">{formatNum(data.aPerformingLeads)} leads</span>
-                          </div>
-                          <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                            <span className="text-slate-500 block">Base + Perf Fee</span>
-                            <span className="font-bold text-sm">{formatCur(data.revABase)} + {formatCur(data.revAPerf)}</span>
-                          </div>
-                          <div className="bg-rose-50 p-2 rounded border border-rose-100">
-                            <span className="text-rose-500 block">Refunds Paid</span>
-                            <span className="font-bold text-sm text-rose-600">-{formatCur(data.totalRefundToA)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Lender B */}
-                      <div className="mb-6">
-                        <div className="flex justify-between items-end mb-2">
-                          <h4 className="font-bold text-slate-700 flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-purple-500"></div> Lender B Stream (Duplicates)
-                          </h4>
-                          <div className="text-right text-sm">
-                            Net: <span className="font-bold text-emerald-600">{formatCur(data.revB)}</span>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                          <div className="bg-slate-50 p-2 rounded border border-slate-100">
                             <span className="text-slate-500 block">Received Leads</span>
                             <span className="font-bold text-sm">{formatNum(data.bReceivedLeads)} ({duplicatePercent}%)</span>
                           </div>
@@ -420,8 +395,12 @@
                             <span className="font-bold text-sm">{formatNum(data.bPerformingLeads)} leads</span>
                           </div>
                           <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                            <span className="text-slate-500 block">Performance Fee</span>
-                            <span className="font-bold text-sm">{formatCur(data.revB)}</span>
+                            <span className="text-slate-500 block">Cold Lead Rev</span>
+                            <span className="font-bold text-sm">{formatCur(data.revBCold)}</span>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                            <span className="text-slate-500 block">Performance Rev</span>
+                            <span className="font-bold text-sm">{formatCur(data.revBPerf)}</span>
                           </div>
                         </div>
                       </div>
